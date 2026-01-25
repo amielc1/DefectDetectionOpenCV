@@ -1,12 +1,56 @@
-﻿<Window x:Class="DefectDetection.MainWindow"
+﻿<Window x:Class="DefectDetectionDemo.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DefectDetection"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        xmlns:oxy="http://oxyplot.org/wpf"
+        xmlns:vm="clr-namespace:DefectDetectionDemo.ViewModels"
+        Title="Amiel's Defect Detection Lab" Height="800" Width="1200"
+        Background="#333333"> <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
 
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <RowDefinition Height="2*"/>   <RowDefinition Height="*"/>    </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,10">
+            <Button Content="Load Image" Command="{Binding LoadImageCommand}" Padding="10,5" Margin="5"/>
+            <Button Content="Add Range" Command="{Binding AddCursorCommand}" Padding="10,5" Margin="5"/>
+            <Button Content="Show Colored Domains" Command="{Binding ApplyColorsCommand}" Padding="10,5" Margin="5" Background="LightBlue"/>
+            <Button Content="Detect Defects" Command="{Binding DetectCommand}" Padding="10,5" Margin="5" Background="LightSalmon"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,10" Background="Black">
+            <Image Source="{Binding CurrentImageDisplay}" Stretch="Uniform"/>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/> <ColumnDefinition Width="Auto"/> <ColumnDefinition Width="400"/> </Grid.ColumnDefinitions>
+
+            <GroupBox Header="Histogram" Foreground="White" BorderBrush="Gray">
+                <oxy:PlotView Model="{Binding DefectModel.Histogram}" Background="Transparent"/>
+            </GroupBox>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center"/>
+
+            <GroupBox Grid.Column="2" Header="Ranges Configuration" Foreground="White" BorderBrush="Gray" Margin="5,0,0,0">
+                <DataGrid ItemsSource="{Binding DefectModel.HistogramDomainsList}" 
+                          SelectedItem="{Binding SelectedDomain}"
+                          AutoGenerateColumns="False" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Idx" Binding="{Binding Index}" Width="40"/>
+                        <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat=N1}" Width="*"/>
+                        <DataGridTextColumn Header="End" Binding="{Binding End, StringFormat=N1}" Width="*"/>
+                        <DataGridTextColumn Header="Color ID" Binding="{Binding Color}" Width="60">
+                            <DataGridTextColumn.HeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="ToolTip" Value="Set to anything other than -1 to enable detection for this range"/>
+                                </Style>
+                            </DataGridTextColumn.HeaderStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+        </Grid>
     </Grid>
 </Window>

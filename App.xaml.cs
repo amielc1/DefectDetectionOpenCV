@@ -10,4 +10,3 @@ namespace DefectDetection;
 public partial class App : Application
 {
 }
-
