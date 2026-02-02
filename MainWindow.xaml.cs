@@ -176,17 +176,22 @@ namespace NdtImageProcessor
         // --- ROI Selection Logic ---
         private bool _isDrawingRoi = false;
         private System.Windows.Point _roiStartPoint;
-        private Rectangle _roiVisual;
-        private OpenCvSharp.Rect? _selectedRoi;
+        private Rectangle _currentRoiVisual;
+        private readonly List<Rectangle> _roiVisuals = new List<Rectangle>();
+        private readonly List<OpenCvSharp.Rect> _selectedRois = new List<OpenCvSharp.Rect>();
 
         private void BtnClearRoi_Click(object sender, RoutedEventArgs e)
         {
-            _selectedRoi = null;
-            if (_roiVisual != null && RoiCanvas.Children.Contains(_roiVisual))
+            _selectedRois.Clear();
+            foreach (var visual in _roiVisuals)
             {
-                RoiCanvas.Children.Remove(_roiVisual);
+                if (RoiCanvas.Children.Contains(visual))
+                {
+                    RoiCanvas.Children.Remove(visual);
+                }
             }
-            _roiVisual = null;
+            _roiVisuals.Clear();
+            _currentRoiVisual = null;
         }
 
         private void RoiCanvas_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -196,29 +201,23 @@ namespace NdtImageProcessor
             _isDrawingRoi = true;
             _roiStartPoint = e.GetPosition(RoiCanvas);
 
-            // Clear previous ROI
-            if (_roiVisual != null && RoiCanvas.Children.Contains(_roiVisual))
-            {
-                RoiCanvas.Children.Remove(_roiVisual);
-            }
-
-            _roiVisual = new Rectangle
+            _currentRoiVisual = new Rectangle
             {
                 Stroke = Brushes.Lime,
                 StrokeThickness = 2,
                 StrokeDashArray = new DoubleCollection(new double[] { 4, 2 })
             };
 
-            Canvas.SetLeft(_roiVisual, _roiStartPoint.X);
-            Canvas.SetTop(_roiVisual, _roiStartPoint.Y);
-            RoiCanvas.Children.Add(_roiVisual);
+            Canvas.SetLeft(_currentRoiVisual, _roiStartPoint.X);
+            Canvas.SetTop(_currentRoiVisual, _roiStartPoint.Y);
+            RoiCanvas.Children.Add(_currentRoiVisual);
             
             RoiCanvas.CaptureMouse();
         }
 
         private void RoiCanvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (!_isDrawingRoi || _roiVisual == null) return;
+            if (!_isDrawingRoi || _currentRoiVisual == null) return;
 
             var currentPoint = e.GetPosition(RoiCanvas);
 
@@ -227,10 +226,10 @@ namespace NdtImageProcessor
             double w = Math.Abs(_roiStartPoint.X - currentPoint.X);
             double h = Math.Abs(_roiStartPoint.Y - currentPoint.Y);
 
-            Canvas.SetLeft(_roiVisual, x);
-            Canvas.SetTop(_roiVisual, y);
-            _roiVisual.Width = w;
-            _roiVisual.Height = h;
+            Canvas.SetLeft(_currentRoiVisual, x);
+            Canvas.SetTop(_currentRoiVisual, y);
+            _currentRoiVisual.Width = w;
+            _currentRoiVisual.Height = h;
         }
 
         private void RoiCanvas_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -239,17 +238,21 @@ namespace NdtImageProcessor
             _isDrawingRoi = false;
             RoiCanvas.ReleaseMouseCapture();
 
-            if (_roiVisual == null || _roiVisual.Width < 5 || _roiVisual.Height < 5)
+            if (_currentRoiVisual == null || _currentRoiVisual.Width < 5 || _currentRoiVisual.Height < 5)
             {
-                BtnClearRoi_Click(null, null);
+                if (_currentRoiVisual != null)
+                {
+                    RoiCanvas.Children.Remove(_currentRoiVisual);
+                    _currentRoiVisual = null;
+                }
                 return;
             }
 
             // Store the ROI in image coordinates
-            double x = Canvas.GetLeft(_roiVisual);
-            double y = Canvas.GetTop(_roiVisual);
-            double w = _roiVisual.Width;
-            double h = _roiVisual.Height;
+            double x = Canvas.GetLeft(_currentRoiVisual);
+            double y = Canvas.GetTop(_currentRoiVisual);
+            double w = _currentRoiVisual.Width;
+            double h = _currentRoiVisual.Height;
 
             int imgW = _originalImage.Width;
             int imgH = _originalImage.Height;
@@ -261,12 +264,15 @@ namespace NdtImageProcessor
 
             if (roiW > 5 && roiH > 5)
             {
-                _selectedRoi = new OpenCvSharp.Rect(roiX, roiY, roiW, roiH);
+                _selectedRois.Add(new OpenCvSharp.Rect(roiX, roiY, roiW, roiH));
+                _roiVisuals.Add(_currentRoiVisual);
             }
             else
             {
-                BtnClearRoi_Click(null, null);
+                RoiCanvas.Children.Remove(_currentRoiVisual);
             }
+            
+            _currentRoiVisual = null;
         }
 
         private void BtnManualAnalyze_Click(object sender, RoutedEventArgs e)
@@ -276,10 +282,21 @@ namespace NdtImageProcessor
             Mat original = _originalImage;
             Mat processed = _processedImage;
 
-            if (_selectedRoi.HasValue)
+            if (_selectedRois.Count > 0)
             {
-                original = new Mat(_originalImage, _selectedRoi.Value);
-                processed = new Mat(_processedImage, _selectedRoi.Value);
+                // Find bounding box of all ROIs
+                int minX = _selectedRois.Min(r => r.X);
+                int minY = _selectedRois.Min(r => r.Y);
+                int maxX = _selectedRois.Max(r => r.X + r.Width);
+                int maxY = _selectedRois.Max(r => r.Y + r.Height);
+
+                OpenCvSharp.Rect combinedRect = new OpenCvSharp.Rect(minX, minY, maxX - minX, maxY - minY);
+                
+                // Ensure it's within image bounds
+                combinedRect = combinedRect.Intersect(new OpenCvSharp.Rect(0, 0, _originalImage.Width, _originalImage.Height));
+
+                original = new Mat(_originalImage, combinedRect);
+                processed = new Mat(_processedImage, combinedRect);
             }
 
             var stepWindow = new AnalysisStepsWindow(
@@ -343,11 +360,14 @@ namespace NdtImageProcessor
     Cv2.MorphologyEx(defectMask, defectMask, MorphTypes.Close, kernel);
 
     // --- ROI Filtering ---
-    if (_selectedRoi.HasValue)
+    if (_selectedRois.Count > 0)
     {
         using (Mat roiMask = new Mat(defectMask.Size(), MatType.CV_8UC1, Scalar.Black))
         {
-            Cv2.Rectangle(roiMask, _selectedRoi.Value, Scalar.White, -1);
+            foreach (var roi in _selectedRois)
+            {
+                Cv2.Rectangle(roiMask, roi, Scalar.White, -1);
+            }
             Cv2.BitwiseAnd(defectMask, roiMask, defectMask);
         }
     }
