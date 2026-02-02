@@ -42,6 +42,7 @@ namespace NdtImageProcessor
                 _originalImage = Cv2.ImRead(dlg.FileName, ImreadModes.Grayscale);
                 _isImageLoaded = true;
 
+                BtnClearRoi_Click(null, null);
                 DrawHistogram();
                 ApplyLut(); // החלת הצבעים הראשונית
             }
@@ -172,13 +173,118 @@ namespace NdtImageProcessor
             return new Vec3b(128, 128, 128);
         }
 
+        // --- ROI Selection Logic ---
+        private bool _isDrawingRoi = false;
+        private System.Windows.Point _roiStartPoint;
+        private Rectangle _roiVisual;
+        private OpenCvSharp.Rect? _selectedRoi;
+
+        private void BtnClearRoi_Click(object sender, RoutedEventArgs e)
+        {
+            _selectedRoi = null;
+            if (_roiVisual != null && RoiCanvas.Children.Contains(_roiVisual))
+            {
+                RoiCanvas.Children.Remove(_roiVisual);
+            }
+            _roiVisual = null;
+        }
+
+        private void RoiCanvas_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ChkRoiEnabled.IsChecked != true || !_isImageLoaded) return;
+
+            _isDrawingRoi = true;
+            _roiStartPoint = e.GetPosition(RoiCanvas);
+
+            // Clear previous ROI
+            if (_roiVisual != null && RoiCanvas.Children.Contains(_roiVisual))
+            {
+                RoiCanvas.Children.Remove(_roiVisual);
+            }
+
+            _roiVisual = new Rectangle
+            {
+                Stroke = Brushes.Lime,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection(new double[] { 4, 2 })
+            };
+
+            Canvas.SetLeft(_roiVisual, _roiStartPoint.X);
+            Canvas.SetTop(_roiVisual, _roiStartPoint.Y);
+            RoiCanvas.Children.Add(_roiVisual);
+            
+            RoiCanvas.CaptureMouse();
+        }
+
+        private void RoiCanvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_isDrawingRoi || _roiVisual == null) return;
+
+            var currentPoint = e.GetPosition(RoiCanvas);
+
+            double x = Math.Min(_roiStartPoint.X, currentPoint.X);
+            double y = Math.Min(_roiStartPoint.Y, currentPoint.Y);
+            double w = Math.Abs(_roiStartPoint.X - currentPoint.X);
+            double h = Math.Abs(_roiStartPoint.Y - currentPoint.Y);
+
+            Canvas.SetLeft(_roiVisual, x);
+            Canvas.SetTop(_roiVisual, y);
+            _roiVisual.Width = w;
+            _roiVisual.Height = h;
+        }
+
+        private void RoiCanvas_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (!_isDrawingRoi) return;
+            _isDrawingRoi = false;
+            RoiCanvas.ReleaseMouseCapture();
+
+            if (_roiVisual == null || _roiVisual.Width < 5 || _roiVisual.Height < 5)
+            {
+                BtnClearRoi_Click(null, null);
+                return;
+            }
+
+            // Store the ROI in image coordinates
+            double x = Canvas.GetLeft(_roiVisual);
+            double y = Canvas.GetTop(_roiVisual);
+            double w = _roiVisual.Width;
+            double h = _roiVisual.Height;
+
+            int imgW = _originalImage.Width;
+            int imgH = _originalImage.Height;
+
+            int roiX = (int)Math.Max(0, Math.Min(x, imgW - 1));
+            int roiY = (int)Math.Max(0, Math.Min(y, imgH - 1));
+            int roiW = (int)Math.Min(w, imgW - roiX);
+            int roiH = (int)Math.Min(h, imgH - roiY);
+
+            if (roiW > 5 && roiH > 5)
+            {
+                _selectedRoi = new OpenCvSharp.Rect(roiX, roiY, roiW, roiH);
+            }
+            else
+            {
+                BtnClearRoi_Click(null, null);
+            }
+        }
+
         private void BtnManualAnalyze_Click(object sender, RoutedEventArgs e)
         {
             if (!_isImageLoaded) return;
 
+            Mat original = _originalImage;
+            Mat processed = _processedImage;
+
+            if (_selectedRoi.HasValue)
+            {
+                original = new Mat(_originalImage, _selectedRoi.Value);
+                processed = new Mat(_processedImage, _selectedRoi.Value);
+            }
+
             var stepWindow = new AnalysisStepsWindow(
-                _originalImage,
-                _processedImage,
+                original,
+                processed,
                 (int)SliderLow.Value,
                 (int)SliderHigh.Value,
                 ComboColorLow.SelectedIndex == 1,
@@ -236,6 +342,15 @@ namespace NdtImageProcessor
     // זה יסתום את החורים השחורים בתוך הפלוס האדום
     Cv2.MorphologyEx(defectMask, defectMask, MorphTypes.Close, kernel);
 
+    // --- ROI Filtering ---
+    if (_selectedRoi.HasValue)
+    {
+        using (Mat roiMask = new Mat(defectMask.Size(), MatType.CV_8UC1, Scalar.Black))
+        {
+            Cv2.Rectangle(roiMask, _selectedRoi.Value, Scalar.White, -1);
+            Cv2.BitwiseAnd(defectMask, roiMask, defectMask);
+        }
+    }
 
     // --- מציאת קונטורים ---
     OpenCvSharp.Point[][] contours;
