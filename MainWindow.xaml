@@ -1,114 +1,93 @@
-<Window x:Class="DefectDetectionDemo.MainWindow"
+﻿<Window x:Class="NdtImageProcessor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:oxy="http://oxyplot.org/wpf"
-        xmlns:vm="clr-namespace:DefectDetectionDemo.ViewModels"
-        Title="Amiel's Defect Detection Lab" Height="850" Width="1300"
-        Background="{StaticResource BackgroundBrush}"
-        WindowStartupLocation="CenterScreen">
-
-    <Window.DataContext>
-        <vm:MainViewModel/>
-    </Window.DataContext>
-
-    <Grid>
+        Title="NDT Defect Detector" Height="700" Width="1000" Background="#333">
+    
+    <Grid Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="150"/>
+        </Grid.RowDefinitions>
 
-        <!-- Sidebar -->
-        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-            <Grid Margin="20">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <StackPanel Grid.Column="0" Grid.RowSpan="2" Margin="0,0,10,0">
+            <Button Content="📂 Load Image" Click="BtnLoad_Click" Height="40" Margin="0,0,0,10" Background="#555" Foreground="White"/>
+            
+            <GroupBox Header="LUT Colors (Segmentation)" Foreground="White">
+                <StackPanel Margin="5">
+                    <Label Content="Low Range (0 to C1):" Foreground="White"/>
+                    <ComboBox Name="ComboColorLow" SelectionChanged="OnLutChanged" SelectedIndex="0">
+                        <ComboBoxItem Content="Black (Background)"/>
+                        <ComboBoxItem Content="Red (Defect)"/>
+                        <ComboBoxItem Content="Green (Material)"/>
+                    </ComboBox>
+                    
+                    <Label Content="Mid Range (C1 to C2):" Foreground="White"/>
+                    <ComboBox Name="ComboColorMid" SelectionChanged="OnLutChanged" SelectedIndex="1">
+                         <ComboBoxItem Content="Black (Background)"/>
+                        <ComboBoxItem Content="Red (Defect)"/>
+                        <ComboBoxItem Content="Green (Material)"/>
+                    </ComboBox>
 
-                <!-- Title -->
-                <TextBlock Text="Defect Detection" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,30"/>
-
-                <!-- Actions -->
-                <StackPanel Grid.Row="1">
-                    <TextBlock Text="ACTIONS" Foreground="{StaticResource SubTextBrush}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,10"/>
-
-                    <Button Content="Load Image" Command="{Binding LoadImageCommand}"/>
-                    <Button Content="Add Cursor Range" Command="{Binding AddCursorCommand}"/>
-                    <Button Content="Show Colored Domains" Command="{Binding ApplyColorsCommand}"/>
-
-                    <Separator Background="{StaticResource BorderBrush}" Margin="0,20"/>
-
-                    <Button Content="Detect Defects" Command="{Binding DetectCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    <Label Content="High Range (C2 to 255):" Foreground="White"/>
+                    <ComboBox Name="ComboColorHigh" SelectionChanged="OnLutChanged" SelectedIndex="2">
+                         <ComboBoxItem Content="Black (Background)"/>
+                        <ComboBoxItem Content="Red (Defect)"/>
+                        <ComboBoxItem Content="Green (Material)"/>
+                    </ComboBox>
                 </StackPanel>
+            </GroupBox>
 
-                <!-- Info / Status (Placeholder) -->
-                <StackPanel Grid.Row="3">
-                    <TextBlock Text="Ready" Foreground="{StaticResource SubTextBrush}" HorizontalAlignment="Center" FontSize="12"/>
-                </StackPanel>
-            </Grid>
+            <Button Content="🔍 Analyze Defects (Red Zones)" Click="BtnAnalyze_Click" Height="50" Margin="0,10,0,10" Background="#D32F2F" Foreground="White" FontWeight="Bold"/>
+
+            <Label Content="Defects Found:" Foreground="White"/>
+            <ListView Name="ListDefects" Height="300" Background="#222" Foreground="White">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="ID" DisplayMemberBinding="{Binding Id}" Width="40"/>
+                        <GridViewColumn Header="Area (px)" DisplayMemberBinding="{Binding Area}" Width="80"/>
+                        <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="80"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </StackPanel>
+
+        <Border Grid.Column="1" Grid.Row="0" BorderBrush="#555" BorderThickness="1" Background="Black">
+            <ScrollViewer Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Image Name="ImgDisplay" Stretch="Uniform" MouseWheel="ImgDisplay_MouseWheel">
+                    <Image.LayoutTransform>
+                        <ScaleTransform x:Name="ImageScaleTransform" ScaleX="1" ScaleY="1"/>
+                    </Image.LayoutTransform>
+                </Image>
+            </ScrollViewer>
         </Border>
 
-        <!-- Main Content -->
-        <Grid Grid.Column="1" Margin="20">
+        <Grid Grid.Column="1" Grid.Row="1" Margin="0,10,0,0">
             <Grid.RowDefinitions>
-                <RowDefinition Height="3*"/>
+                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="2*"/>
             </Grid.RowDefinitions>
-
-            <!-- Image View -->
-            <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Background="Black" ClipToBounds="True">
-                 <Grid>
-                    <TextBlock Text="No Image Loaded"
-                               Foreground="#555"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                    <Image Source="{Binding CurrentImageDisplay}" Stretch="Uniform"/>
-                 </Grid>
-            </Border>
-
-            <!-- Splitter -->
-            <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Background="Transparent" Margin="0,5"/>
-
-            <!-- Analysis Tools -->
-            <Grid Grid.Row="2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="1.5*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Histogram -->
-                <GroupBox Header="Intensity Histogram">
-                    <oxy:PlotView Model="{Binding DefectModel.Histogram}" Background="Transparent"/>
-                </GroupBox>
-
-                <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" Background="Transparent"/>
-
-                <!-- Ranges / DataGrid -->
-                <GroupBox Grid.Column="2" Header="Ranges Configuration">
-                    <DataGrid ItemsSource="{Binding DefectModel.HistogramDomainsList}"
-                              SelectedItem="{Binding SelectedDomain}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              BorderThickness="0">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="40" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat=N1}" Width="*"/>
-                            <DataGridTextColumn Header="End" Binding="{Binding End, StringFormat=N1}" Width="*"/>
-                            <DataGridTextColumn Header="Color ID" Binding="{Binding Color}" Width="80">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </GroupBox>
+            
+            <Canvas Name="HistCanvas" Background="#111" SizeChanged="HistCanvas_SizeChanged"/>
+            
+            <Grid VerticalAlignment="Center" Height="30">
+                <Slider Name="SliderLow" Minimum="0" Maximum="255" Value="80" 
+                        ValueChanged="OnSliderChanged" Opacity="0.7" Foreground="Cyan"/>
             </Grid>
+            <Grid VerticalAlignment="Bottom" Height="30" Margin="0,0,0,-15">
+                <Slider Name="SliderHigh" Minimum="0" Maximum="255" Value="180" 
+                        ValueChanged="OnSliderChanged" Opacity="0.7" Foreground="Yellow"/>
+            </Grid>
+            
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Text="Cursor 1: " Foreground="Cyan"/>
+                <TextBlock Text="{Binding ElementName=SliderLow, Path=Value, StringFormat=N0}" Foreground="Cyan" Margin="0,0,20,0"/>
+                <TextBlock Text="Cursor 2: " Foreground="Yellow"/>
+                <TextBlock Text="{Binding ElementName=SliderHigh, Path=Value, StringFormat=N0}" Foreground="Yellow"/>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

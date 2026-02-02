@@ -16,4 +16,12 @@
       <PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Page Update="MainWindow.xaml">
+        <Generator>MSBuild:Compile</Generator>
+        <XamlRuntime>Wpf</XamlRuntime>
+        <SubType>Designer</SubType>
+      </Page>
+    </ItemGroup>
+
 </Project>
