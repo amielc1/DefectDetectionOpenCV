@@ -1,0 +1,60 @@
+﻿<Window x:Class="NdtImageProcessor.AnalysisStepsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manual Analysis Steps" Height="800" Width="1100" Background="#333">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,10,0">
+                <TextBlock Text="Analysis Steps" Foreground="White" FontSize="18" FontWeight="Bold" Margin="0,0,0,10"/>
+                
+                <GroupBox Header="Step 1: Pre-processing (Blur)" Foreground="White" Margin="0,0,0,10">
+                    <StackPanel Margin="5">
+                        <Label Content="Median Blur Kernel Size (odd):" Foreground="White"/>
+                        <TextBox Name="TxtBlurSize" Text="5" Margin="0,0,0,5"/>
+                        <Button Content="Run Median Blur" Click="BtnBlur_Click" Height="30" Background="#555" Foreground="White"/>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Step 2: Thresholding" Foreground="White" Margin="0,0,0,10">
+                    <StackPanel Margin="5">
+                        <TextBlock Text="Uses sliders from Main Window" Foreground="LightGray" FontStyle="Italic" Margin="0,0,0,5"/>
+                        <Button Content="Run Thresholding (Mask)" Click="BtnThreshold_Click" Height="30" Background="#555" Foreground="White"/>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Step 3: Morphological Closing" Foreground="White" Margin="0,0,0,10">
+                    <StackPanel Margin="5">
+                        <Label Content="Kernel Size:" Foreground="White"/>
+                        <TextBox Name="TxtMorphSize" Text="11" Margin="0,0,0,5"/>
+                        <Button Content="Run Morphological Closing" Click="BtnMorph_Click" Height="30" Background="#555" Foreground="White"/>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Step 4: Find Contours" Foreground="White" Margin="0,0,0,10">
+                    <StackPanel Margin="5">
+                        <Button Content="Find &amp; Draw Contours" Click="BtnContours_Click" Height="30" Background="#555" Foreground="White"/>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Step 5: Final Results" Foreground="White" Margin="0,0,0,10">
+                    <StackPanel Margin="5">
+                        <Button Content="Generate Report" Click="BtnFinal_Click" Height="30" Background="#D32F2F" Foreground="White" FontWeight="Bold"/>
+                    </StackPanel>
+                </GroupBox>
+                
+                <Button Content="Reset Image" Click="BtnReset_Click" Height="30" Margin="0,10,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Column="1" BorderBrush="#555" BorderThickness="1" Background="Black">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Image Name="ImgStepDisplay" Stretch="Uniform"/>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

@@ -172,6 +172,21 @@ namespace NdtImageProcessor
             return new Vec3b(128, 128, 128);
         }
 
+        private void BtnManualAnalyze_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isImageLoaded) return;
+
+            var stepWindow = new AnalysisStepsWindow(
+                _originalImage,
+                _processedImage,
+                (int)SliderLow.Value,
+                (int)SliderHigh.Value,
+                ComboColorLow.SelectedIndex == 1,
+                ComboColorMid.SelectedIndex == 1,
+                ComboColorHigh.SelectedIndex == 1);
+            stepWindow.Show();
+        }
+
         private void BtnAnalyze_Click(object sender, RoutedEventArgs e)
 {
     if (!_isImageLoaded) return;
