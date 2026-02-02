@@ -11,15 +11,24 @@ namespace NdtImageProcessor
         private Mat _original;
         private Mat _current;
         private Mat _lutDisplay; // To show results on top of LUT colored image
+        private List<OpenCvSharp.Rect> _rois;
         
         private int _thLow, _thHigh;
         private bool _isLowRed, _isMidRed, _isHighRed;
 
-        public AnalysisStepsWindow(Mat original, Mat lutDisplay, int thLow, int thHigh, bool lowRed, bool midRed, bool highRed)
+        public AnalysisStepsWindow(Mat original, Mat lutDisplay, int thLow, int thHigh, bool lowRed, bool midRed, bool highRed, List<OpenCvSharp.Rect> rois = null)
         {
             InitializeComponent();
             _original = original.Clone();
             _lutDisplay = lutDisplay.Clone();
+            _rois = rois;
+
+            if (_rois != null && _rois.Count > 0)
+            {
+                ApplyRoiMask(_original);
+                ApplyRoiMask(_lutDisplay);
+            }
+
             _current = _original.Clone();
             
             _thLow = thLow;
@@ -29,6 +38,30 @@ namespace NdtImageProcessor
             _isHighRed = highRed;
             
             UpdateDisplay();
+        }
+
+        private void ApplyRoiMask(Mat target)
+        {
+            if (_rois == null || _rois.Count == 0) return;
+
+            using (Mat mask = new Mat(target.Size(), MatType.CV_8UC1, Scalar.Black))
+            {
+                foreach (var roi in _rois)
+                {
+                    Cv2.Rectangle(mask, roi, Scalar.White, -1);
+                }
+
+                if (target.Channels() == 3)
+                {
+                    Mat masked = new Mat(target.Size(), target.Type(), Scalar.Black);
+                    target.CopyTo(masked, mask);
+                    masked.CopyTo(target);
+                }
+                else
+                {
+                    Cv2.BitwiseAnd(target, mask, target);
+                }
+            }
         }
 
         private void UpdateDisplay()
@@ -80,6 +113,8 @@ namespace NdtImageProcessor
                 Cv2.InRange(_current, new Scalar(_thHigh), new Scalar(255), tempMask);
                 Cv2.BitwiseOr(defectMask, tempMask, defectMask);
             }
+
+            ApplyRoiMask(defectMask);
             
             _current = defectMask;
             UpdateDisplay();

@@ -281,6 +281,7 @@ namespace NdtImageProcessor
 
             Mat original = _originalImage;
             Mat processed = _processedImage;
+            List<OpenCvSharp.Rect> relativeRois = null;
 
             if (_selectedRois.Count > 0)
             {
@@ -297,6 +298,10 @@ namespace NdtImageProcessor
 
                 original = new Mat(_originalImage, combinedRect);
                 processed = new Mat(_processedImage, combinedRect);
+
+                // Adjust ROIs to be relative to the cropped image
+                relativeRois = _selectedRois.Select(r => 
+                    new OpenCvSharp.Rect(r.X - combinedRect.X, r.Y - combinedRect.Y, r.Width, r.Height)).ToList();
             }
 
             var stepWindow = new AnalysisStepsWindow(
@@ -306,7 +311,8 @@ namespace NdtImageProcessor
                 (int)SliderHigh.Value,
                 ComboColorLow.SelectedIndex == 1,
                 ComboColorMid.SelectedIndex == 1,
-                ComboColorHigh.SelectedIndex == 1);
+                ComboColorHigh.SelectedIndex == 1,
+                relativeRois);
             stepWindow.Show();
         }
 
