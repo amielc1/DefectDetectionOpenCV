@@ -188,5 +188,64 @@ namespace NdtImageProcessor
             _current = _original.Clone();
             UpdateDisplay();
         }
+
+        private void BtnBlurSizeUp_Click(object sender, RoutedEventArgs e)
+        {
+            TxtBlurSize.Text = AdjustOddValue(TxtBlurSize.Text, 2, 1, 99).ToString();
+        }
+
+        private void BtnBlurSizeDown_Click(object sender, RoutedEventArgs e)
+        {
+            TxtBlurSize.Text = AdjustOddValue(TxtBlurSize.Text, -2, 1, 99).ToString();
+        }
+
+        private void BtnMorphSizeUp_Click(object sender, RoutedEventArgs e)
+        {
+            TxtMorphSize.Text = AdjustValue(TxtMorphSize.Text, 1, 1, 99).ToString();
+        }
+
+        private void BtnMorphSizeDown_Click(object sender, RoutedEventArgs e)
+        {
+            TxtMorphSize.Text = AdjustValue(TxtMorphSize.Text, -1, 1, 99).ToString();
+        }
+
+        private static int AdjustOddValue(string text, int delta, int min, int max)
+        {
+            if (!int.TryParse(text, out int value))
+            {
+                value = min;
+            }
+
+            if (value % 2 == 0)
+            {
+                value += 1;
+            }
+
+            value += delta;
+            if (value % 2 == 0)
+            {
+                value += delta > 0 ? 1 : -1;
+            }
+
+            if (value < min) value = min;
+            if (value % 2 == 0) value += 1;
+            if (value > max) value = max % 2 == 0 ? max - 1 : max;
+
+            return value;
+        }
+
+        private static int AdjustValue(string text, int delta, int min, int max)
+        {
+            if (!int.TryParse(text, out int value))
+            {
+                value = min;
+            }
+
+            value += delta;
+            if (value < min) value = min;
+            if (value > max) value = max;
+
+            return value;
+        }
     }
 }

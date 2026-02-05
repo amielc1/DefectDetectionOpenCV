@@ -500,19 +500,91 @@ namespace NdtImageProcessor
 
         private void ImgDisplay_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
-            var transform = (System.Windows.Media.ScaleTransform)this.FindName("ImageScaleTransform");
-            if (transform == null) return;
+            if (ImageScaleTransform == null) return;
+            double factor = e.Delta > 0 ? 1.1 : (1.0 / 1.1);
+            SetZoom(ImageScaleTransform.ScaleX * factor);
+        }
 
-            if (e.Delta > 0)
+        private void BtnZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isImageLoaded || ImageScaleTransform == null) return;
+            SetZoom(ImageScaleTransform.ScaleX / 1.1);
+        }
+
+        private void BtnZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isImageLoaded || ImageScaleTransform == null) return;
+            SetZoom(ImageScaleTransform.ScaleX * 1.1);
+        }
+
+        private void BtnZoomFit_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isImageLoaded || ImageScaleTransform == null) return;
+            if (!TryGetImageSize(out double imgWidth, out double imgHeight)) return;
+
+            double viewportWidth = ImageScrollViewer.ViewportWidth;
+            double viewportHeight = ImageScrollViewer.ViewportHeight;
+
+            if (viewportWidth <= 0 || double.IsNaN(viewportWidth))
             {
-                transform.ScaleX *= 1.1;
-                transform.ScaleY *= 1.1;
+                viewportWidth = ImageScrollViewer.ActualWidth;
             }
-            else
+
+            if (viewportHeight <= 0 || double.IsNaN(viewportHeight))
             {
-                transform.ScaleX /= 1.1;
-                transform.ScaleY /= 1.1;
+                viewportHeight = ImageScrollViewer.ActualHeight;
             }
+
+            if (viewportWidth <= 0 || viewportHeight <= 0) return;
+
+            double scale = Math.Min(viewportWidth / imgWidth, viewportHeight / imgHeight);
+            if (double.IsInfinity(scale) || scale <= 0) return;
+
+            SetZoom(scale);
+        }
+
+        private void BtnZoomActual_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isImageLoaded || ImageScaleTransform == null) return;
+            SetZoom(1.0);
+        }
+
+        private void SetZoom(double scale)
+        {
+            if (ImageScaleTransform == null) return;
+
+            double clamped = Math.Max(0.05, Math.Min(scale, 20.0));
+            ImageScaleTransform.ScaleX = clamped;
+            ImageScaleTransform.ScaleY = clamped;
+            UpdateZoomLevelText(clamped);
+        }
+
+        private void UpdateZoomLevelText(double scale)
+        {
+            if (TxtZoomLevel == null) return;
+            TxtZoomLevel.Text = $"{scale * 100:0}%";
+        }
+
+        private bool TryGetImageSize(out double width, out double height)
+        {
+            width = 0;
+            height = 0;
+
+            if (_processedImage != null && !_processedImage.IsDisposed)
+            {
+                width = _processedImage.Width;
+                height = _processedImage.Height;
+                return true;
+            }
+
+            if (_originalImage != null && !_originalImage.IsDisposed)
+            {
+                width = _originalImage.Width;
+                height = _originalImage.Height;
+                return true;
+            }
+
+            return false;
         }
     }
 }

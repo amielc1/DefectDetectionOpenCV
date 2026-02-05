@@ -1,60 +1,247 @@
 ﻿<Window x:Class="NdtImageProcessor.AnalysisStepsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Manual Analysis Steps" Height="800" Width="1100" Background="#333">
-    <Grid Margin="10">
+        Title="Manual Analysis Steps" Height="850" Width="1200"
+        Background="{StaticResource BackgroundDarkBrush}"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Step Indicator Style -->
+            <Style x:Key="StepIndicator" TargetType="Border">
+                <Setter Property="Width" Value="32"/>
+                <Setter Property="Height" Value="32"/>
+                <Setter Property="CornerRadius" Value="16"/>
+                <Setter Property="Background" Value="{StaticResource BackgroundLightBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="2"/>
+            </Style>
+
+            <!-- Step Indicator Completed -->
+            <Style x:Key="StepIndicatorCompleted" TargetType="Border" BasedOn="{StaticResource StepIndicator}">
+                <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+            </Style>
+
+            <!-- Step Indicator Active -->
+            <Style x:Key="StepIndicatorActive" TargetType="Border" BasedOn="{StaticResource StepIndicator}">
+                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="350" MinWidth="300"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*" MinWidth="400"/>
         </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="0,0,10,0">
-                <TextBlock Text="Analysis Steps" Foreground="White" FontSize="18" FontWeight="Bold" Margin="0,0,0,10"/>
-                
-                <GroupBox Header="Step 1: Pre-processing (Blur)" Foreground="White" Margin="0,0,0,10">
-                    <StackPanel Margin="5">
-                        <Label Content="Median Blur Kernel Size (odd):" Foreground="White"/>
-                        <TextBox Name="TxtBlurSize" Text="5" Margin="0,0,0,5"/>
-                        <Button Content="Run Median Blur" Click="BtnBlur_Click" Height="30" Background="#555" Foreground="White"/>
+        <!-- Steps Panel -->
+        <ScrollViewer Grid.Column="0" Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="Analysis Pipeline" Style="{StaticResource TitleText}" Margin="0,0,0,16"/>
+
+                <!-- Step 1: Pre-processing -->
+                <GroupBox Style="{StaticResource ModernGroupBox}">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Name="Step1Indicator" Style="{StaticResource StepIndicator}" Margin="0,0,10,0">
+                                <TextBlock Text="1" Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="Bold" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Pre-processing (Blur)" VerticalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <Label Content="Median Blur Kernel Size (must be odd):"
+                               Style="{StaticResource ModernLabel}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Name="TxtBlurSize" Text="5" Grid.Column="0"
+                                     Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"
+                                     ToolTip="Enter an odd number (e.g., 3, 5, 7, 9)"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="▲" Width="28" Height="20" Padding="0"
+                                        Style="{StaticResource IconButton}" FontSize="10"
+                                        Click="BtnBlurSizeUp_Click"/>
+                                <Button Content="▼" Width="28" Height="20" Padding="0"
+                                        Style="{StaticResource IconButton}" FontSize="10" Margin="2,0,0,0"
+                                        Click="BtnBlurSizeDown_Click"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Reduces noise by smoothing the image"
+                                   Style="{StaticResource InfoText}"/>
+                        <Button Content="▶ Run Median Blur" Click="BtnBlur_Click"
+                                Height="36" Style="{StaticResource PrimaryButton}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="Step 2: Thresholding" Foreground="White" Margin="0,0,0,10">
-                    <StackPanel Margin="5">
-                        <TextBlock Text="Uses sliders from Main Window" Foreground="LightGray" FontStyle="Italic" Margin="0,0,0,5"/>
-                        <Button Content="Run Thresholding (Mask)" Click="BtnThreshold_Click" Height="30" Background="#555" Foreground="White"/>
+                <!-- Step 2: Thresholding -->
+                <GroupBox Style="{StaticResource ModernGroupBox}">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Name="Step2Indicator" Style="{StaticResource StepIndicator}" Margin="0,0,10,0">
+                                <TextBlock Text="2" Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="Bold" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Thresholding" VerticalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <TextBlock Text="Uses threshold sliders from Main Window"
+                                   Style="{StaticResource SubtitleText}" Margin="0,0,0,8"/>
+                        <TextBlock Text="Creates binary mask based on intensity ranges"
+                                   Style="{StaticResource InfoText}"/>
+                        <Button Content="▶ Run Thresholding" Click="BtnThreshold_Click"
+                                Height="36" Style="{StaticResource PrimaryButton}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="Step 3: Morphological Closing" Foreground="White" Margin="0,0,0,10">
-                    <StackPanel Margin="5">
-                        <Label Content="Kernel Size:" Foreground="White"/>
-                        <TextBox Name="TxtMorphSize" Text="11" Margin="0,0,0,5"/>
-                        <Button Content="Run Morphological Closing" Click="BtnMorph_Click" Height="30" Background="#555" Foreground="White"/>
+                <!-- Step 3: Morphological Closing -->
+                <GroupBox Style="{StaticResource ModernGroupBox}">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Name="Step3Indicator" Style="{StaticResource StepIndicator}" Margin="0,0,10,0">
+                                <TextBlock Text="3" Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="Bold" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Morphological Closing" VerticalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <Label Content="Kernel Size:" Style="{StaticResource ModernLabel}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Name="TxtMorphSize" Text="11" Grid.Column="0"
+                                     Style="{StaticResource ModernTextBox}" Margin="0,0,8,0"
+                                     ToolTip="Larger values close bigger gaps"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="▲" Width="28" Height="20" Padding="0"
+                                        Style="{StaticResource IconButton}" FontSize="10"
+                                        Click="BtnMorphSizeUp_Click"/>
+                                <Button Content="▼" Width="28" Height="20" Padding="0"
+                                        Style="{StaticResource IconButton}" FontSize="10" Margin="2,0,0,0"
+                                        Click="BtnMorphSizeDown_Click"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Fills small holes and connects nearby regions"
+                                   Style="{StaticResource InfoText}"/>
+                        <Button Content="▶ Run Morphological Closing" Click="BtnMorph_Click"
+                                Height="36" Style="{StaticResource PrimaryButton}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="Step 4: Find Contours" Foreground="White" Margin="0,0,0,10">
-                    <StackPanel Margin="5">
-                        <Button Content="Find &amp; Draw Contours" Click="BtnContours_Click" Height="30" Background="#555" Foreground="White"/>
+                <!-- Step 4: Find Contours -->
+                <GroupBox Style="{StaticResource ModernGroupBox}">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Name="Step4Indicator" Style="{StaticResource StepIndicator}" Margin="0,0,10,0">
+                                <TextBlock Text="4" Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="Bold" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Find Contours" VerticalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <TextBlock Text="Detects boundaries of defect regions"
+                                   Style="{StaticResource InfoText}"/>
+                        <Button Content="▶ Find &amp; Draw Contours" Click="BtnContours_Click"
+                                Height="36" Style="{StaticResource PrimaryButton}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="Step 5: Final Results" Foreground="White" Margin="0,0,0,10">
-                    <StackPanel Margin="5">
-                        <Button Content="Generate Report" Click="BtnFinal_Click" Height="30" Background="#D32F2F" Foreground="White" FontWeight="Bold"/>
+                <!-- Step 5: Final Results -->
+                <GroupBox Style="{StaticResource ModernGroupBox}">
+                    <GroupBox.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Name="Step5Indicator" Style="{StaticResource StepIndicator}" Margin="0,0,10,0">
+                                <TextBlock Text="5" Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="Bold" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Final Results" VerticalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <TextBlock Text="Generates comprehensive analysis report"
+                                   Style="{StaticResource InfoText}"/>
+                        <Button Content="✓ Generate Report" Click="BtnFinal_Click"
+                                Height="40" Style="{StaticResource DangerButton}" Margin="0,8,0,0"/>
                     </StackPanel>
                 </GroupBox>
-                
-                <Button Content="Reset Image" Click="BtnReset_Click" Height="30" Margin="0,10,0,0"/>
+
+                <!-- Reset Button -->
+                <Button Content="↺ Reset to Original" Click="BtnReset_Click"
+                        Height="36" Style="{StaticResource ModernButton}" Margin="0,8,0,0"/>
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Column="1" BorderBrush="#555" BorderThickness="1" Background="Black">
+        <!-- GridSplitter -->
+        <GridSplitter Grid.Column="1" Grid.Row="0"
+                      Width="4" HorizontalAlignment="Center"
+                      Background="{StaticResource BorderBrush}"
+                      ShowsPreview="False"
+                      ToolTip="Drag to resize panels"/>
+
+        <!-- Image Display Area -->
+        <Border Grid.Column="2" Grid.Row="0" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" Background="#000000" CornerRadius="4">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <Image Name="ImgStepDisplay" Stretch="Uniform"/>
             </ScrollViewer>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1"
+                Background="{StaticResource BackgroundMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0" Padding="12,8" Margin="0,8,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="Current Step:" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Name="TxtCurrentStep" Text="Ready"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="Processing Time:" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Name="TxtProcessingTime" Text="0 ms"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

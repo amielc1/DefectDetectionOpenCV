@@ -2,108 +2,245 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:oxy="http://oxyplot.org/wpf"
-        Title="NDT Defect Detector" Height="700" Width="1000" Background="#333">
+        Title="NDT Defect Detector" Height="750" Width="1200"
+        Background="{StaticResource BackgroundDarkBrush}"
+        WindowStartupLocation="CenterScreen">
     
-    <Grid Margin="10">
+    <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="250"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="280" MinWidth="200"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*" MinWidth="400"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="150"/>
+            <RowDefinition Height="180" MinHeight="120"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Column="0" Grid.RowSpan="2" Margin="0,0,10,0">
-            <Button Content="📂 Load Image" Click="BtnLoad_Click" Height="40" Margin="0,0,0,10" Background="#555" Foreground="White"/>
-            
-            <GroupBox Header="LUT Colors (Segmentation)" Foreground="White">
-                <StackPanel Margin="5">
-                    <Label Content="Low Range (0 to C1):" Foreground="White"/>
-                    <ComboBox Name="ComboColorLow" SelectionChanged="OnLutChanged" SelectedIndex="0">
-                        <ComboBoxItem Content="Black (Background)"/>
-                        <ComboBoxItem Content="Red (Defect)"/>
-                        <ComboBoxItem Content="Green (Material)"/>
-                    </ComboBox>
-                    
-                    <Label Content="Mid Range (C1 to C2):" Foreground="White"/>
-                    <ComboBox Name="ComboColorMid" SelectionChanged="OnLutChanged" SelectedIndex="1">
-                         <ComboBoxItem Content="Black (Background)"/>
-                        <ComboBoxItem Content="Red (Defect)"/>
-                        <ComboBoxItem Content="Green (Material)"/>
-                    </ComboBox>
+        <!-- Left Sidebar -->
+        <ScrollViewer Grid.Column="0" Grid.Row="0" Grid.RowSpan="3" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,8,0">
+                <!-- Load Image Button -->
+                <Button Content="📂 Load Image" Click="BtnLoad_Click"
+                        Height="44" Style="{StaticResource PrimaryButton}"
+                        Margin="0,0,0,16"
+                        ToolTip="Load an image for defect analysis"/>
 
-                    <Label Content="High Range (C2 to 255):" Foreground="White"/>
-                    <ComboBox Name="ComboColorHigh" SelectionChanged="OnLutChanged" SelectedIndex="2">
-                         <ComboBoxItem Content="Black (Background)"/>
-                        <ComboBoxItem Content="Red (Defect)"/>
-                        <ComboBoxItem Content="Green (Material)"/>
-                    </ComboBox>
-                </StackPanel>
-            </GroupBox>
+                <!-- LUT Colors Section -->
+                <GroupBox Header="LUT Colors (Segmentation)" Style="{StaticResource ModernGroupBox}">
+                    <StackPanel>
+                        <Label Content="Low Range (0 to C1):" Style="{StaticResource ModernLabel}"/>
+                        <ComboBox Name="ComboColorLow" SelectionChanged="OnLutChanged"
+                                  SelectedIndex="0" Style="{StaticResource ModernComboBox}"
+                                  Margin="0,0,0,10" ToolTip="Color for low intensity values">
+                            <ComboBoxItem Content="Black (Background)"/>
+                            <ComboBoxItem Content="Red (Defect)"/>
+                            <ComboBoxItem Content="Green (Material)"/>
+                        </ComboBox>
 
-            <GroupBox Header="Region of Interest (ROI)" Foreground="White" Margin="0,10,0,0">
-                <StackPanel Margin="5">
-                    <CheckBox Name="ChkRoiEnabled" Content="Enable ROI Selection" Foreground="White" Margin="0,0,5,5"/>
-                    <Button Content="Clear ROI" Click="BtnClearRoi_Click" Background="#555" Foreground="White"/>
-                </StackPanel>
-            </GroupBox>
+                        <Label Content="Mid Range (C1 to C2):" Style="{StaticResource ModernLabel}"/>
+                        <ComboBox Name="ComboColorMid" SelectionChanged="OnLutChanged"
+                                  SelectedIndex="1" Style="{StaticResource ModernComboBox}"
+                                  Margin="0,0,0,10" ToolTip="Color for mid intensity values">
+                            <ComboBoxItem Content="Black (Background)"/>
+                            <ComboBoxItem Content="Red (Defect)"/>
+                            <ComboBoxItem Content="Green (Material)"/>
+                        </ComboBox>
 
-            <Button Content="🛠 Manual Step-by-Step" Click="BtnManualAnalyze_Click" Height="40" Margin="0,10,0,0" Background="#555" Foreground="White"/>
-            <Button Content="🔍 Analyze Defects (Red Zones)" Click="BtnAnalyze_Click" Height="50" Margin="0,10,0,10" Background="#D32F2F" Foreground="White" FontWeight="Bold"/>
+                        <Label Content="High Range (C2 to 255):" Style="{StaticResource ModernLabel}"/>
+                        <ComboBox Name="ComboColorHigh" SelectionChanged="OnLutChanged"
+                                  SelectedIndex="2" Style="{StaticResource ModernComboBox}"
+                                  ToolTip="Color for high intensity values">
+                            <ComboBoxItem Content="Black (Background)"/>
+                            <ComboBoxItem Content="Red (Defect)"/>
+                            <ComboBoxItem Content="Green (Material)"/>
+                        </ComboBox>
+                    </StackPanel>
+                </GroupBox>
 
-            <Label Content="Defects Found:" Foreground="White"/>
-            <ListView Name="ListDefects" Height="300" Background="#222" Foreground="White">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="ID" DisplayMemberBinding="{Binding Id}" Width="40"/>
-                        <GridViewColumn Header="Area (px)" DisplayMemberBinding="{Binding Area}" Width="80"/>
-                        <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="80"/>
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </StackPanel>
+                <!-- ROI Section -->
+                <GroupBox Header="Region of Interest (ROI)" Style="{StaticResource ModernGroupBox}">
+                    <StackPanel>
+                        <CheckBox Name="ChkRoiEnabled" Content="Enable ROI Selection"
+                                  Style="{StaticResource ModernCheckBox}" Margin="0,0,0,8"
+                                  ToolTip="Enable drawing rectangular regions of interest"/>
+                        <Button Content="Clear All ROIs" Click="BtnClearRoi_Click"
+                                Style="{StaticResource ModernButton}"
+                                ToolTip="Remove all defined ROI regions"/>
+                    </StackPanel>
+                </GroupBox>
 
-        <Border Grid.Column="1" Grid.Row="0" BorderBrush="#555" BorderThickness="1" Background="Black">
-            <ScrollViewer Name="ImageScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                <Grid Name="ImageGrid" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Grid.LayoutTransform>
-                        <ScaleTransform x:Name="ImageScaleTransform" ScaleX="1" ScaleY="1"/>
-                    </Grid.LayoutTransform>
-                    <!-- Replaced Image with oxy:PlotView -->
-                    <oxy:PlotView Name="PlotView" Background="Transparent" />
-                    <Canvas Name="RoiCanvas" Background="Transparent" 
-                            MouseDown="RoiCanvas_MouseDown" 
-                            MouseMove="RoiCanvas_MouseMove" 
-                            MouseUp="RoiCanvas_MouseUp"
-                            MouseWheel="ImgDisplay_MouseWheel" />
-                </Grid>
-            </ScrollViewer>
-        </Border>
+                <!-- Analysis Actions -->
+                <Button Content="🛠 Manual Step-by-Step" Click="BtnManualAnalyze_Click"
+                        Height="44" Style="{StaticResource ModernButton}"
+                        Margin="0,0,0,12"
+                        ToolTip="Open step-by-step analysis window"/>
+                <Button Content="🔍 Analyze Defects" Click="BtnAnalyze_Click"
+                        Height="50" Style="{StaticResource DangerButton}"
+                        Margin="0,0,0,16"
+                        ToolTip="Run automatic defect detection on red zones"/>
 
-        <Grid Grid.Column="1" Grid.Row="1" Margin="0,10,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-            
-            <Canvas Name="HistCanvas" Background="#111" SizeChanged="HistCanvas_SizeChanged"/>
-            
-            <Grid VerticalAlignment="Center" Height="30">
-                <Slider Name="SliderLow" Minimum="0" Maximum="255" Value="80" 
-                        ValueChanged="OnSliderChanged" Opacity="0.7" Foreground="Cyan"/>
-            </Grid>
-            <Grid VerticalAlignment="Bottom" Height="30" Margin="0,0,0,-15">
-                <Slider Name="SliderHigh" Minimum="0" Maximum="255" Value="180" 
-                        ValueChanged="OnSliderChanged" Opacity="0.7" Foreground="Yellow"/>
-            </Grid>
-            
-            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
-                <TextBlock Text="Cursor 1: " Foreground="Cyan"/>
-                <TextBlock Text="{Binding ElementName=SliderLow, Path=Value, StringFormat=N0}" Foreground="Cyan" Margin="0,0,20,0"/>
-                <TextBlock Text="Cursor 2: " Foreground="Yellow"/>
-                <TextBlock Text="{Binding ElementName=SliderHigh, Path=Value, StringFormat=N0}" Foreground="Yellow"/>
+                <!-- Defects List -->
+                <TextBlock Text="Defects Found" Style="{StaticResource TitleText}" FontSize="14"/>
+                <ListView Name="ListDefects" Height="280" Style="{StaticResource ModernListView}"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="ID" DisplayMemberBinding="{Binding Id}" Width="45"/>
+                            <GridViewColumn Header="Area (px)" DisplayMemberBinding="{Binding Area}" Width="90"/>
+                            <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="100"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
             </StackPanel>
+        </ScrollViewer>
+
+        <!-- GridSplitter -->
+        <GridSplitter Grid.Column="1" Grid.Row="0" Grid.RowSpan="3"
+                      Width="4" HorizontalAlignment="Center"
+                      Background="{StaticResource BorderBrush}"
+                      ShowsPreview="False"
+                      ToolTip="Drag to resize panels"/>
+
+        <!-- Image Display Area -->
+        <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Toolbar -->
+            <Border Grid.Row="0" Background="{StaticResource BackgroundMediumBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                    Padding="8,6" Margin="0,0,0,2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Zoom Controls -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button Content="−" Style="{StaticResource IconButton}"
+                                Click="BtnZoomOut_Click"
+                                ToolTip="Zoom Out" Width="32" FontSize="18" FontWeight="Bold"/>
+                        <TextBlock Name="TxtZoomLevel" Text="100%" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="8,0" MinWidth="50" TextAlignment="Center"
+                                   FontWeight="SemiBold"/>
+                        <Button Content="+" Style="{StaticResource IconButton}"
+                                Click="BtnZoomIn_Click"
+                                ToolTip="Zoom In" Width="32" FontSize="18" FontWeight="Bold"/>
+                        <Separator Margin="8,0" Width="1" Background="{StaticResource BorderBrush}"/>
+                        <Button Content="⊡" Style="{StaticResource IconButton}"
+                                Click="BtnZoomFit_Click"
+                                ToolTip="Fit to Window" FontSize="16"/>
+                        <Button Content="1:1" Style="{StaticResource IconButton}"
+                                Click="BtnZoomActual_Click"
+                                ToolTip="Actual Size" FontSize="11" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <!-- Image Info -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <TextBlock Name="TxtImageInfo" Text="No image loaded"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="11"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Image Viewer -->
+            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" Background="#000000">
+                <ScrollViewer Name="ImageScrollViewer"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid Name="ImageGrid" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid.LayoutTransform>
+                            <ScaleTransform x:Name="ImageScaleTransform" ScaleX="1" ScaleY="1"/>
+                        </Grid.LayoutTransform>
+                        <oxy:PlotView Name="PlotView" Background="Transparent"/>
+                        <Canvas Name="RoiCanvas" Background="Transparent"
+                                MouseDown="RoiCanvas_MouseDown"
+                                MouseMove="RoiCanvas_MouseMove"
+                                MouseUp="RoiCanvas_MouseUp"
+                                MouseWheel="ImgDisplay_MouseWheel"/>
+                    </Grid>
+                </ScrollViewer>
+            </Border>
         </Grid>
+
+        <!-- Histogram Section -->
+        <Border Grid.Column="2" Grid.Row="2" Margin="0,8,0,0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="4">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Histogram Title -->
+                <TextBlock Grid.Row="0" Text="Intensity Histogram"
+                           Style="{StaticResource TitleText}"
+                           FontSize="13" Margin="0,0,0,8"/>
+
+                <!-- Histogram Canvas -->
+                <Border Grid.Row="1" Background="#0A0A0A" BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="2">
+                    <Grid>
+                        <Canvas Name="HistCanvas" SizeChanged="HistCanvas_SizeChanged"/>
+
+                        <!-- Sliders Overlay -->
+                        <Grid VerticalAlignment="Center" Height="30">
+                            <Slider Name="SliderLow" Minimum="0" Maximum="255" Value="80"
+                                    ValueChanged="OnSliderChanged" Opacity="0.75"
+                                    Style="{StaticResource ModernSlider}"
+                                    Foreground="Cyan"
+                                    ToolTip="Lower threshold cursor"/>
+                        </Grid>
+                        <Grid VerticalAlignment="Bottom" Height="30" Margin="0,0,0,-15">
+                            <Slider Name="SliderHigh" Minimum="0" Maximum="255" Value="180"
+                                    ValueChanged="OnSliderChanged" Opacity="0.75"
+                                    Style="{StaticResource ModernSlider}"
+                                    Foreground="Yellow"
+                                    ToolTip="Upper threshold cursor"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Threshold Values Display -->
+                <Border Grid.Row="2" Background="{StaticResource BackgroundLightBrush}"
+                        CornerRadius="3" Padding="10,6" Margin="0,8,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="C1 (Lower): " Foreground="Cyan"
+                                       FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding ElementName=SliderLow, Path=Value, StringFormat=N0}"
+                                       Foreground="Cyan" FontSize="12" FontWeight="Bold"
+                                       MinWidth="30"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="C2 (Upper): " Foreground="Yellow"
+                                       FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding ElementName=SliderHigh, Path=Value, StringFormat=N0}"
+                                       Foreground="Yellow" FontSize="12" FontWeight="Bold"
+                                       MinWidth="30"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
