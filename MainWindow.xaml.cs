@@ -9,6 +9,10 @@ using Microsoft.Win32;
 
 using OpenCvSharp;
 using OpenCvSharp.WpfExtensions; // חשוב להמרות
+using OxyPlot;
+using OxyPlot.Annotations;
+using OxyPlot.Axes;
+using OxyPlot.Series;
 
 namespace NdtImageProcessor
 {
@@ -25,10 +29,39 @@ namespace NdtImageProcessor
         private Mat _originalImage; // התמונה המקורית (שחור לבן)
         private Mat _processedImage; // התמונה לתצוגה (צבעונית אחרי LUT)
         private bool _isImageLoaded = false;
+        private PlotModel _plotModel;
 
         public MainWindow()
         {
             InitializeComponent();
+            InitializePlot();
+        }
+
+        private void InitializePlot()
+        {
+            _plotModel = new PlotModel { Title = "" };
+            _plotModel.PlotAreaBorderThickness = new OxyThickness(0);
+            _plotModel.PlotMargins = new OxyThickness(0); // Ensure no margins around the plot
+            
+            // Remove axes for image display look
+            _plotModel.Axes.Add(new LinearAxis 
+            { 
+                Position = AxisPosition.Bottom, 
+                IsAxisVisible = false,
+                MinimumPadding = 0,
+                MaximumPadding = 0
+            });
+            _plotModel.Axes.Add(new LinearAxis 
+            { 
+                Position = AxisPosition.Left, 
+                IsAxisVisible = false,
+                StartPosition = 1, 
+                EndPosition = 0,
+                MinimumPadding = 0,
+                MaximumPadding = 0
+            });
+
+            PlotView.Model = _plotModel;
         }
 
         // --- 1. טעינת תמונה וחישוב היסטוגרמה ---
@@ -160,8 +193,50 @@ namespace NdtImageProcessor
             _processedImage = new Mat();
             Cv2.LUT(colorSrc, lut, _processedImage);
 
-            // המרה לתצוגה ב-WPF
-            ImgDisplay.Source = _processedImage.ToBitmapSource();
+            // המרה לתצוגה ב-OxyPlot
+            UpdatePlotImage(_processedImage);
+        }
+
+        private void UpdatePlotImage(Mat image)
+        {
+            // Convert Mat to byte array (PNG)
+            Cv2.ImEncode(".png", image, out byte[] bytes);
+            var oxyImage = new OxyImage(bytes);
+
+            _plotModel.Annotations.Clear();
+            
+            // Position the image correctly in the plot coordinates
+            // We want the image to span from (0,0) to (Width, Height)
+            // ImageAnnotation X/Y is the center point.
+            double centerX = image.Width / 2.0;
+            double centerY = image.Height / 2.0;
+
+            _plotModel.Annotations.Add(new ImageAnnotation
+            {
+                ImageSource = oxyImage,
+                X = new PlotLength(centerX, PlotLengthUnit.Data),
+                Y = new PlotLength(centerY, PlotLengthUnit.Data),
+                Width = new PlotLength(image.Width, PlotLengthUnit.Data),
+                Height = new PlotLength(image.Height, PlotLengthUnit.Data),
+                HorizontalAlignment = OxyPlot.HorizontalAlignment.Center,
+                VerticalAlignment = OxyPlot.VerticalAlignment.Middle
+            });
+
+            // Adjust axes to image size
+            _plotModel.Axes[0].Minimum = 0;
+            _plotModel.Axes[0].Maximum = image.Width;
+            _plotModel.Axes[1].Minimum = 0;
+            _plotModel.Axes[1].Maximum = image.Height;
+
+            _plotModel.InvalidatePlot(true);
+            
+            // Set PlotView size to match image size so ScrollViewer works
+            PlotView.Width = image.Width;
+            PlotView.Height = image.Height;
+            
+            // Ensure RoiCanvas matches the image size for correct coordinate mapping
+            RoiCanvas.Width = image.Width;
+            RoiCanvas.Height = image.Height;
         }
 
         // עזר: המרת בחירת ComboBox לצבע OpenCV (BGR)
@@ -317,228 +392,127 @@ namespace NdtImageProcessor
         }
 
         private void BtnAnalyze_Click(object sender, RoutedEventArgs e)
-{
-    if (!_isImageLoaded) return;
-
-    int thLow = (int)SliderLow.Value;
-    int thHigh = (int)SliderHigh.Value;
-
-    // יצירת מסכה בינארית (קנבס שחור) שתכיל את התוצאה הסופית
-    Mat defectMask = new Mat(_originalImage.Size(), MatType.CV_8UC1, Scalar.Black);
-
-    bool isLowRed = ComboColorLow.SelectedIndex == 1;
-    bool isMidRed = ComboColorMid.SelectedIndex == 1;
-    bool isHighRed = ComboColorHigh.SelectedIndex == 1;
-
-    
-    Mat cleanedImage = new Mat();
-
-    // שלב 1: ניקוי ראשוני (Pre-processing)
-    // הערה: במקרה של "מרקם", לפעמים כדאי לשקול גם Cv2.Blur (ממוצע) במקום MedianBlur
-    // כדי ליצור הבדלי בהירות בין הרקע לפגם. כרגע השארתי את ה-Median שבחרת.
-    Cv2.MedianBlur(_originalImage, cleanedImage, 5);
-
-    // שלב 2: בניית המסכה לפי סף (Thresholding)
-    Mat tempMask = new Mat();
-
-    if (isLowRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(0), new Scalar(thLow), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-    if (isMidRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(thLow), new Scalar(thHigh), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-    if (isHighRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(thHigh), new Scalar(255), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-
-    // --- הוספה חדשה: ניקוי מורפולוגי (Morphological Closing) ---
-    // הגדרת "מכחול" (Kernel) בגודל 9x9 כפי שסיכמנו, כדי להתגבר על רעש גס
-    Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(11, 11));
-
-    // ביצוע פעולת "סגירה" (הרחבה -> כיווץ) בבת אחת
-    // זה יסתום את החורים השחורים בתוך הפלוס האדום
-    Cv2.MorphologyEx(defectMask, defectMask, MorphTypes.Close, kernel);
-
-    // --- ROI Filtering ---
-    if (_selectedRois.Count > 0)
-    {
-        using (Mat roiMask = new Mat(defectMask.Size(), MatType.CV_8UC1, Scalar.Black))
         {
-            foreach (var roi in _selectedRois)
+            if (!_isImageLoaded) return;
+
+            int thLow = (int)SliderLow.Value;
+            int thHigh = (int)SliderHigh.Value;
+
+            // יצירת מסכה בינארית (קנבס שחור) שתכיל את התוצאה הסופית
+            Mat defectMask = new Mat(_originalImage.Size(), MatType.CV_8UC1, Scalar.Black);
+
+            bool isLowRed = ComboColorLow.SelectedIndex == 1;
+            bool isMidRed = ComboColorMid.SelectedIndex == 1;
+            bool isHighRed = ComboColorHigh.SelectedIndex == 1;
+
+            
+            Mat cleanedImage = new Mat();
+
+            // שלב 1: ניקוי ראשוני (Pre-processing)
+            Cv2.MedianBlur(_originalImage, cleanedImage, 5);
+
+            // שלב 2: בניית המסכה לפי סף (Thresholding)
+            Mat tempMask = new Mat();
+
+            if (isLowRed)
             {
-                Cv2.Rectangle(roiMask, roi, Scalar.White, -1);
+                Cv2.InRange(cleanedImage, new Scalar(0), new Scalar(thLow), tempMask);
+                Cv2.BitwiseOr(defectMask, tempMask, defectMask);
             }
-            Cv2.BitwiseAnd(defectMask, roiMask, defectMask);
-        }
-    }
+            if (isMidRed)
+            {
+                Cv2.InRange(cleanedImage, new Scalar(thLow), new Scalar(thHigh), tempMask);
+                Cv2.BitwiseOr(defectMask, tempMask, defectMask);
+            }
+            if (isHighRed)
+            {
+                Cv2.InRange(cleanedImage, new Scalar(thHigh), new Scalar(255), tempMask);
+                Cv2.BitwiseOr(defectMask, tempMask, defectMask);
+            }
 
-    // --- מציאת קונטורים ---
-    OpenCvSharp.Point[][] contours;
-    HierarchyIndex[] hierarchy;
-    
-    // שימוש ב-ApproxNone כדי לקבל דיוק מקסימלי בקו המתאר
-    Cv2.FindContours(
-        defectMask, 
-        out contours, 
-        out hierarchy, 
-        RetrievalModes.External, 
-        ContourApproximationModes.ApproxNone); 
+            // --- הוספה חדשה: ניקוי מורפולוגי (Morphological Closing) ---
+            Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(11, 11));
+            Cv2.MorphologyEx(defectMask, defectMask, MorphTypes.Close, kernel);
 
-    // הכנה לציור התוצאות
-    Mat resultDisplay = _processedImage.Clone();
-    List<DefectItem> defectsList = new List<DefectItem>();
-    int idCounter = 1;
+            // --- ROI Filtering ---
+            if (_selectedRois.Count > 0)
+            {
+                using (Mat roiMask = new Mat(defectMask.Size(), MatType.CV_8UC1, Scalar.Black))
+                {
+                    foreach (var roi in _selectedRois)
+                    {
+                        Cv2.Rectangle(roiMask, roi, Scalar.White, -1);
+                    }
+                    Cv2.BitwiseAnd(defectMask, roiMask, defectMask);
+                }
+            }
 
-    foreach (var cnt in contours)
-    {
-        double area = Cv2.ContourArea(cnt);
+            // --- מציאת קונטורים ---
+            OpenCvSharp.Point[][] contours;
+            HierarchyIndex[] hierarchy;
+            
+            Cv2.FindContours(
+                defectMask, 
+                out contours, 
+                out hierarchy, 
+                RetrievalModes.External, 
+                ContourApproximationModes.ApproxNone); 
 
-        // סינון רעשים קטנים שנשארו (אם יש)
-        if (area < 10) continue;
+            // הכנה לציור התוצאות
+            Mat resultDisplay = _processedImage.Clone();
+            List<DefectItem> defectsList = new List<DefectItem>();
+            int idCounter = 1;
 
-        // ציור נקודות כחולות על קו המתאר
-        foreach (var point in cnt)
-        {
-            Cv2.Circle(resultDisplay, point, 1, Scalar.Blue, -1);
-        }
+            foreach (var cnt in contours)
+            {
+                double area = Cv2.ContourArea(cnt);
 
-        // חישוב המלבן החוסם רק לצורך מיקום הטקסט
-        OpenCvSharp.Rect rect = Cv2.BoundingRect(cnt);
-        
-        // הוספת טקסט מזהה
-        Cv2.PutText(resultDisplay, $"#{idCounter}", new OpenCvSharp.Point(rect.X, rect.Y - 5),
-            HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
+                // סינון רעשים קטנים שנשארו (אם יש)
+                if (area < 10) continue;
 
-        defectsList.Add(new DefectItem
-        {
-            Id = idCounter++,
-            Area = area,
-            Status = area > 500 ? "CRITICAL" : "Warning"
-        });
-    }
+                // ציור נקודות כחולות על קו המתאר
+                foreach (var point in cnt)
+                {
+                    Cv2.Circle(resultDisplay, point, 1, Scalar.Blue, -1);
+                }
 
-    // עדכון ממשק
-    ImgDisplay.Source = resultDisplay.ToBitmapSource();
-    ListDefects.ItemsSource = defectsList;
+                // חישוב המלבן החוסם רק לצורך מיקום הטקסט
+                OpenCvSharp.Rect rect = Cv2.BoundingRect(cnt);
+                
+                // הוספת טקסט מזהה
+                Cv2.PutText(resultDisplay, $"#{idCounter}", new OpenCvSharp.Point(rect.X, rect.Y - 5),
+                    HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
 
-    MessageBox.Show($"Analysis Complete. Found {defectsList.Count} defects.", "NDT Result");
-}
+                defectsList.Add(new DefectItem
+                {
+                    Id = idCounter++,
+                    Area = area,
+                    Status = area > 500 ? "CRITICAL" : "Warning"
+                });
+            }
 
-private void ImgDisplay_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
-{
-    var transform = (System.Windows.Media.ScaleTransform)this.FindName("ImageScaleTransform");
-    if (transform == null) return;
+            // עדכון ממשק
+            UpdatePlotImage(resultDisplay);
+            ListDefects.ItemsSource = defectsList;
 
-    if (e.Delta > 0)
-    {
-        transform.ScaleX *= 1.1;
-        transform.ScaleY *= 1.1;
-    }
-    else
-    {
-        transform.ScaleX /= 1.1;
-        transform.ScaleY /= 1.1;
-    }
-}
-        // --- 4. מציאת פגמים אוטומטית (מעודכן) ---
-/*private void BtnAnalyze_Click(object sender, RoutedEventArgs e)
-{
-    if (!_isImageLoaded) return;
-
-    int thLow = (int)SliderLow.Value;
-    int thHigh = (int)SliderHigh.Value;
-
-    // יצירת מסכה בינארית רק לאזורים שהוגדרו כ"אדום" (Defect)
-    Mat defectMask = new Mat(_originalImage.Size(), MatType.CV_8UC1, Scalar.Black);
-
-    bool isLowRed = ComboColorLow.SelectedIndex == 1;
-    bool isMidRed = ComboColorMid.SelectedIndex == 1;
-    bool isHighRed = ComboColorHigh.SelectedIndex == 1;
-
-    
-    Mat cleanedImage = new Mat();
-
-    // 2. הפעלת פילטר חציון (Median Blur)
-    // המספר 5 הוא גודל ה"חלון" (Kernel Size). הוא חייב להיות אי-זוגי.
-    // ככל שהמספר גדול יותר, הניקוי חזק יותר אך התמונה תהיה פחות חדה.
-    Cv2.MedianBlur(_originalImage, cleanedImage, 5);
-    Mat tempMask = new Mat();
-
-    if (isLowRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(0), new Scalar(thLow), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-    if (isMidRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(thLow), new Scalar(thHigh), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-    if (isHighRed)
-    {
-        Cv2.InRange(cleanedImage, new Scalar(thHigh), new Scalar(255), tempMask);
-        Cv2.BitwiseOr(defectMask, tempMask, defectMask);
-    }
-
-    // --- מציאת קונטורים ---
-    OpenCvSharp.Point[][] contours;
-    HierarchyIndex[] hierarchy;
-    
-    // שינוי 1: שימוש ב-ApproxNone כדי לקבל את כל הנקודות על ההיקף ולא רק קודקודים
-    Cv2.FindContours(
-        defectMask, 
-        out contours, 
-        out hierarchy, 
-        RetrievalModes.External, 
-        ContourApproximationModes.ApproxNone); 
-
-    // הכנה לציור התוצאות
-    Mat resultDisplay = _processedImage.Clone();
-    List<DefectItem> defectsList = new List<DefectItem>();
-    int idCounter = 1;
-
-    foreach (var cnt in contours)
-    {
-        double area = Cv2.ContourArea(cnt);
-
-        // סינון רעשים
-        if (area < 10) continue;
-
-        // שינוי 2: במקום ריבוע, ציור נקודות אדומות על כל קו המתאר
-        foreach (var point in cnt)
-        {
-            // ציור עיגול מלא ברדיוס 1 פיקסל בצבע אדום
-            // פרמטר אחרון -1 אומר "מלא את העיגול בצבע"
-            Cv2.Circle(resultDisplay, point, 1, Scalar.Blue, -1);
+            MessageBox.Show($"Analysis Complete. Found {defectsList.Count} defects.", "NDT Result");
         }
 
-        // אופציונלי: עדיין נחשב את הריבוע רק כדי לדעת איפה למקם את הטקסט
-        OpenCvSharp.Rect rect = Cv2.BoundingRect(cnt);
-        
-        // הוספת טקסט (ID) ליד הפגם
-        Cv2.PutText(resultDisplay, $"#{idCounter}", new OpenCvSharp.Point(rect.X, rect.Y - 5),
-            HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1); // טקסט לבן שיראה טוב על רקע כהה
-
-        defectsList.Add(new DefectItem
+        private void ImgDisplay_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
-            Id = idCounter++,
-            Area = area,
-            Status = area > 500 ? "CRITICAL" : "Warning"
-        });
-    }
+            var transform = (System.Windows.Media.ScaleTransform)this.FindName("ImageScaleTransform");
+            if (transform == null) return;
 
-    // עדכון ממשק
-    ImgDisplay.Source = resultDisplay.ToBitmapSource();
-    ListDefects.ItemsSource = defectsList;
-
-    MessageBox.Show($"Analysis Complete. Found {defectsList.Count} defects.", "NDT Result");
-}*/
-       
+            if (e.Delta > 0)
+            {
+                transform.ScaleX *= 1.1;
+                transform.ScaleY *= 1.1;
+            }
+            else
+            {
+                transform.ScaleX /= 1.1;
+                transform.ScaleY /= 1.1;
+            }
+        }
     }
 }
