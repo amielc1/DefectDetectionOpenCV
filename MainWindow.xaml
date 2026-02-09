@@ -76,10 +76,17 @@
                         Height="44" Style="{StaticResource ModernButton}"
                         Margin="0,0,0,12"
                         ToolTip="Open step-by-step analysis window"/>
-                <Button Content="🔍 Analyze Defects" Click="BtnAnalyze_Click"
+                <Button Name="BtnAnalyze" Content="🔍 Analyze Defects" Click="BtnAnalyze_Click"
                         Height="50" Style="{StaticResource DangerButton}"
                         Margin="0,0,0,16"
                         ToolTip="Run automatic defect detection on red zones"/>
+
+                <!-- Progress Section -->
+                <StackPanel Name="ProgressSection" Visibility="Collapsed" Margin="0,0,0,16">
+                    <TextBlock Name="TxtStatus" Text="Analyzing..." Style="{StaticResource InfoText}" Margin="0,0,0,4"/>
+                    <ProgressBar Name="AnalysisProgressBar" Height="10" Minimum="0" Maximum="100" Value="0"
+                                 Foreground="{StaticResource SuccessBrush}" Background="{StaticResource BackgroundLightBrush}" BorderThickness="0"/>
+                </StackPanel>
 
                 <!-- Defects List -->
                 <TextBlock Text="Defects Found" Style="{StaticResource TitleText}" FontSize="14"/>

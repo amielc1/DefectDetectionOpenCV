@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -22,6 +23,12 @@ namespace NdtImageProcessor
         public int Id { get; set; }
         public double Area { get; set; }
         public string Status { get; set; } // Reject / Warning
+    }
+
+    public class AnalysisResult
+    {
+        public Mat DisplayImage { get; set; }
+        public List<DefectItem> Defects { get; set; }
     }
 
     public partial class MainWindow : System.Windows.Window
@@ -391,29 +398,66 @@ namespace NdtImageProcessor
             stepWindow.Show();
         }
 
-        private void BtnAnalyze_Click(object sender, RoutedEventArgs e)
+        private async void BtnAnalyze_Click(object sender, RoutedEventArgs e)
         {
             if (!_isImageLoaded) return;
 
+            // UI preparation
+            BtnAnalyze.IsEnabled = false;
+            ProgressSection.Visibility = Visibility.Visible;
+            AnalysisProgressBar.Value = 0;
+            TxtStatus.Text = "Starting analysis...";
+
             int thLow = (int)SliderLow.Value;
             int thHigh = (int)SliderHigh.Value;
-
-            // יצירת מסכה בינארית (קנבס שחור) שתכיל את התוצאה הסופית
-            Mat defectMask = new Mat(_originalImage.Size(), MatType.CV_8UC1, Scalar.Black);
-
             bool isLowRed = ComboColorLow.SelectedIndex == 1;
             bool isMidRed = ComboColorMid.SelectedIndex == 1;
             bool isHighRed = ComboColorHigh.SelectedIndex == 1;
 
-            
-            Mat cleanedImage = new Mat();
+            // Capture necessary data to avoid accessing UI thread from background
+            var originalImageCopy = _originalImage.Clone();
+            var processedImageCopy = _processedImage.Clone();
+            var selectedRois = _selectedRois.ToList();
 
-            // שלב 1: ניקוי ראשוני (Pre-processing)
-            Cv2.MedianBlur(_originalImage, cleanedImage, 5);
+            var progress = new Progress<(int value, string status)>(p =>
+            {
+                AnalysisProgressBar.Value = p.value;
+                TxtStatus.Text = p.status;
+            });
 
-            // שלב 2: בניית המסכה לפי סף (Thresholding)
-            Mat tempMask = new Mat();
+            try
+            {
+                var result = await Task.Run(() => PerformAnalysis(originalImageCopy, processedImageCopy, thLow, thHigh, isLowRed, isMidRed, isHighRed, selectedRois, progress));
 
+                // Update UI with results
+                UpdatePlotImage(result.DisplayImage);
+                ListDefects.ItemsSource = result.Defects;
+                result.DisplayImage.Dispose();
+                
+                MessageBox.Show($"Analysis Complete. Found {result.Defects.Count} defects.", "NDT Result");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Analysis failed: {ex.Message}", "Error");
+            }
+            finally
+            {
+                BtnAnalyze.IsEnabled = true;
+                ProgressSection.Visibility = Visibility.Collapsed;
+                originalImageCopy.Dispose();
+                processedImageCopy.Dispose();
+            }
+        }
+
+        private AnalysisResult PerformAnalysis(Mat originalImage, Mat processedImage, int thLow, int thHigh, bool isLowRed, bool isMidRed, bool isHighRed, List<OpenCvSharp.Rect> selectedRois, IProgress<(int value, string status)> progress)
+        {
+            progress?.Report((10, "Preprocessing image..."));
+            using Mat defectMask = new Mat(originalImage.Size(), MatType.CV_8UC1, Scalar.Black);
+            using Mat cleanedImage = new Mat();
+            Cv2.MedianBlur(originalImage, cleanedImage, 5);
+
+            progress?.Report((20, "Thresholding..."));
+            using Mat tempMask = new Mat();
             if (isLowRed)
             {
                 Cv2.InRange(cleanedImage, new Scalar(0), new Scalar(thLow), tempMask);
@@ -430,16 +474,16 @@ namespace NdtImageProcessor
                 Cv2.BitwiseOr(defectMask, tempMask, defectMask);
             }
 
-            // --- הוספה חדשה: ניקוי מורפולוגי (Morphological Closing) ---
-            Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(11, 11));
+            progress?.Report((40, "Morphological operations..."));
+            using Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(11, 11));
             Cv2.MorphologyEx(defectMask, defectMask, MorphTypes.Close, kernel);
 
-            // --- ROI Filtering ---
-            if (_selectedRois.Count > 0)
+            if (selectedRois.Count > 0)
             {
+                progress?.Report((50, "Applying ROI filtering..."));
                 using (Mat roiMask = new Mat(defectMask.Size(), MatType.CV_8UC1, Scalar.Black))
                 {
-                    foreach (var roi in _selectedRois)
+                    foreach (var roi in selectedRois)
                     {
                         Cv2.Rectangle(roiMask, roi, Scalar.White, -1);
                     }
@@ -447,39 +491,26 @@ namespace NdtImageProcessor
                 }
             }
 
-            // --- מציאת קונטורים ---
-            OpenCvSharp.Point[][] contours;
-            HierarchyIndex[] hierarchy;
-            
-            Cv2.FindContours(
-                defectMask, 
-                out contours, 
-                out hierarchy, 
-                RetrievalModes.External, 
-                ContourApproximationModes.ApproxNone); 
+            progress?.Report((60, "Finding contours..."));
+            Cv2.FindContours(defectMask, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxNone);
 
-            // הכנה לציור התוצאות
-            Mat resultDisplay = _processedImage.Clone();
+            progress?.Report((70, $"Found {contours.Length} potential defects. Filtering and annotating..."));
+            Mat resultDisplay = processedImage.Clone();
             List<DefectItem> defectsList = new List<DefectItem>();
             int idCounter = 1;
 
-            foreach (var cnt in contours)
+            var filteredContours = contours.Where(c => Cv2.ContourArea(c) >= 10).ToList();
+            int total = filteredContours.Count;
+
+            for (int i = 0; i < total; i++)
             {
+                var cnt = filteredContours[i];
                 double area = Cv2.ContourArea(cnt);
 
-                // סינון רעשים קטנים שנשארו (אם יש)
-                if (area < 10) continue;
+                // Draw contour outline efficiently
+                Cv2.DrawContours(resultDisplay, new[] { cnt }, -1, Scalar.Blue, 1);
 
-                // ציור נקודות כחולות על קו המתאר
-                foreach (var point in cnt)
-                {
-                    Cv2.Circle(resultDisplay, point, 1, Scalar.Blue, -1);
-                }
-
-                // חישוב המלבן החוסם רק לצורך מיקום הטקסט
                 OpenCvSharp.Rect rect = Cv2.BoundingRect(cnt);
-                
-                // הוספת טקסט מזהה
                 Cv2.PutText(resultDisplay, $"#{idCounter}", new OpenCvSharp.Point(rect.X, rect.Y - 5),
                     HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
 
@@ -489,13 +520,16 @@ namespace NdtImageProcessor
                     Area = area,
                     Status = area > 500 ? "CRITICAL" : "Warning"
                 });
+
+                if (i % 50 == 0 || i == total - 1)
+                {
+                    int p = 70 + (int)((i / (float)total) * 25);
+                    progress?.Report((p, $"Annotating defect {i + 1}/{total}..."));
+                }
             }
 
-            // עדכון ממשק
-            UpdatePlotImage(resultDisplay);
-            ListDefects.ItemsSource = defectsList;
-
-            MessageBox.Show($"Analysis Complete. Found {defectsList.Count} defects.", "NDT Result");
+            progress?.Report((100, "Analysis complete."));
+            return new AnalysisResult { DisplayImage = resultDisplay, Defects = defectsList };
         }
 
         private void ImgDisplay_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
