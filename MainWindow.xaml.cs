@@ -9,7 +9,8 @@ using System.Windows.Shapes;
 using Microsoft.Win32;
 
 using OpenCvSharp;
-using OpenCvSharp.WpfExtensions; // חשוב להמרות
+using OpenCvSharp.WpfExtensions; // Important for conversions
+using NdtImageProcessor.Models;
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
@@ -17,24 +18,10 @@ using OxyPlot.Series;
 
 namespace NdtImageProcessor
 {
-    // מחלקה לייצוג שורה בטבלה
-    public class DefectItem
-    {
-        public int Id { get; set; }
-        public double Area { get; set; }
-        public string Status { get; set; } // Reject / Warning
-    }
-
-    public class AnalysisResult
-    {
-        public Mat DisplayImage { get; set; }
-        public List<DefectItem> Defects { get; set; }
-    }
-
     public partial class MainWindow : System.Windows.Window
     {
-        private Mat _originalImage; // התמונה המקורית (שחור לבן)
-        private Mat _processedImage; // התמונה לתצוגה (צבעונית אחרי LUT)
+        private Mat _originalImage; // Original image (grayscale)
+        private Mat _processedImage; // Display image (color after LUT)
         private bool _isImageLoaded = false;
         private PlotModel _plotModel;
 
@@ -71,38 +58,38 @@ namespace NdtImageProcessor
             PlotView.Model = _plotModel;
         }
 
-        // --- 1. טעינת תמונה וחישוב היסטוגרמה ---
+        // --- 1. Image loading and histogram calculation ---
         private void BtnLoad_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog dlg = new OpenFileDialog();
             dlg.Filter = "Image Files|*.png;*.jpg;*.bmp;*.tif";
             if (dlg.ShowDialog() == true)
             {
-                // טעינה כ-Grayscale (קריטי ל-NDT)
+                // Load as Grayscale (critical for NDT)
                 _originalImage = Cv2.ImRead(dlg.FileName, ImreadModes.Grayscale);
                 _isImageLoaded = true;
 
                 BtnClearRoi_Click(null, null);
                 DrawHistogram();
-                ApplyLut(); // החלת הצבעים הראשונית
+                ApplyLut(); // Apply initial colors
             }
         }
 
-        // --- 2. ציור היסטוגרמה ---
+        // --- 2. Draw histogram ---
         private void DrawHistogram()
         {
             if (!_isImageLoaded) return;
 
             HistCanvas.Children.Clear();
 
-            // חישוב היסטוגרמה ב-OpenCV
+            // Calculate histogram in OpenCV
             Mat hist = new Mat();
             int[] channels = { 0 };
             int[] histSize = { 256 };
             Rangef[] ranges = { new Rangef(0, 256) };
             Cv2.CalcHist(new[] { _originalImage }, channels, null, hist, 1, histSize, ranges);
 
-            // נרמול הגובה לגובה הקנבס
+            // Normalize height to canvas height
             double minVal, maxVal;
             Cv2.MinMaxLoc(hist, out minVal, out maxVal);
             float[] histData = new float[256];
@@ -112,7 +99,7 @@ namespace NdtImageProcessor
             double canvasHeight = HistCanvas.ActualHeight;
             double barWidth = canvasWidth / 256;
 
-            // ציור קווים עבור כל bin
+            // Draw lines for each bin
             for (int i = 0; i < 256; i++)
             {
                 double normalizedHeight = (histData[i] / maxVal) * canvasHeight;
@@ -130,22 +117,22 @@ namespace NdtImageProcessor
             }
         }
 
-        // טיפול בשינוי גודל חלון כדי לצייר מחדש היסטוגרמה
+        // Handle window resizing to redraw the histogram
         private void HistCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (_isImageLoaded) DrawHistogram();
         }
 
-        // --- 3. לוגיקה של LUT וספים (Thresholds) ---
+        // --- 3. LUT Logic and Thresholds ---
         
         private void OnSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            // --- תיקון: בדיקת תקינות ---
-            // WPF מפעיל את האירוע הזה בזמן בניית החלון.
-            // אם הסליידר השני עדיין לא נוצר, הוא יהיה null ואנחנו חייבים לעצור.
+            // --- FIX: Validation ---
+            // WPF triggers this event during window construction.
+            // If the other slider is not created yet, it will be null and we must stop.
             if (SliderLow == null || SliderHigh == null) return;
 
-            // מניעת חפיפה לוגית של הסליידרים
+            // Prevent logical overlap of sliders
             if (SliderLow.Value > SliderHigh.Value)
             {
                 if (sender == SliderLow) 
@@ -173,16 +160,16 @@ namespace NdtImageProcessor
             int thLow = (int)SliderLow.Value;
             int thHigh = (int)SliderHigh.Value;
 
-            // יצירת טבלת המרה צבעונית (3 ערוצים)
-            // Mat בגודל 1x256, מסוג Vec3b (צבע)
+            // Create color lookup table (3 channels)
+            // Mat size 1x256, type Vec3b (color)
             Mat lut = new Mat(1, 256, MatType.CV_8UC3);
             
-            // השגת הצבעים שנבחרו ב-ComboBox
+            // Get colors selected in ComboBoxes
             Vec3b colLow = GetColorFromCombo(ComboColorLow);
             Vec3b colMid = GetColorFromCombo(ComboColorMid);
             Vec3b colHigh = GetColorFromCombo(ComboColorHigh);
 
-            // מילוי הטבלה לפי הסליידרים
+            // Fill table based on sliders
             for (int i = 0; i < 256; i++)
             {
                 if (i <= thLow)
@@ -193,14 +180,14 @@ namespace NdtImageProcessor
                     lut.Set(0, i, colHigh);
             }
 
-            // המרה לצבע כדי שנוכל להחיל LUT צבעוני
+            // Convert to color so we can apply color LUT
             Mat colorSrc = new Mat();
             Cv2.CvtColor(_originalImage, colorSrc, ColorConversionCodes.GRAY2BGR);
             
             _processedImage = new Mat();
             Cv2.LUT(colorSrc, lut, _processedImage);
 
-            // המרה לתצוגה ב-OxyPlot
+            // Convert for display in OxyPlot
             UpdatePlotImage(_processedImage);
         }
 
@@ -246,7 +233,7 @@ namespace NdtImageProcessor
             RoiCanvas.Height = image.Height;
         }
 
-        // עזר: המרת בחירת ComboBox לצבע OpenCV (BGR)
+        // Helper: Convert ComboBox selection to OpenCV color (BGR)
         private Vec3b GetColorFromCombo(ComboBox combo)
         {
             if (combo.SelectedIndex == 0) return new Vec3b(0, 0, 0);       // Black
@@ -514,22 +501,11 @@ namespace NdtImageProcessor
                 Cv2.PutText(resultDisplay, $"#{idCounter}", new OpenCvSharp.Point(rect.X, rect.Y - 5),
                     HersheyFonts.HersheySimplex, 0.5, Scalar.White, 1);
 
-                defectsList.Add(new DefectItem
-                {
-                    Id = idCounter++,
-                    Area = area,
-                    Status = area > 500 ? "CRITICAL" : "Warning"
-                });
-
-                if (i % 50 == 0 || i == total - 1)
-                {
-                    int p = 70 + (int)((i / (float)total) * 25);
-                    progress?.Report((p, $"Annotating defect {i + 1}/{total}..."));
-                }
+                defectsList.Add(new DefectItem(idCounter++, area, area > 500 ? "CRITICAL" : "Warning"));
             }
 
             progress?.Report((100, "Analysis complete."));
-            return new AnalysisResult { DisplayImage = resultDisplay, Defects = defectsList };
+            return new AnalysisResult(resultDisplay, defectsList);
         }
 
         private void ImgDisplay_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
