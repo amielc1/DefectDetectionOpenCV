@@ -11,6 +11,7 @@ using OxyPlot.Axes;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
+using Rect = OpenCvSharp.Rect;
 
 namespace NdtImageProcessor.ViewModels;
 
